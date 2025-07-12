@@ -1,0 +1,23 @@
+version: "3"
+
+services:
+  backend:
+    build: .
+    ports:
+      - "3000:3000"
+    depends_on:
+      - mysql
+    environment:
+      - DB_HOST=mysql
+      - DB_USER=root
+      - DB_PASSWORD=trungson01
+      - DB_NAME=chat_with_me
+
+  mysql:
+    image: mysql:8.0
+    restart: always
+    environment:
+      MYSQL_ROOT_PASSWORD: trungson01
+      MYSQL_DATABASE: chat_with_me
+    ports:
+      - "3307:3306"
