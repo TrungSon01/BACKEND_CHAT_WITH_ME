@@ -9,7 +9,7 @@ exports.getChatHistory = async (req, res) => {
   try {
     const q = `SELECT * FROM messages WHERE 
       (sender_id = ? AND receiver_id = ?) OR (sender_id = ? AND receiver_id = ?)
-      ORDER BY created_at ASC`;
+      ORDER BY timestamp  ASC`;
     const [rows] = await db.execute(q, [userId1, userId2, userId2, userId1]);
     res.status(200).json(rows);
   } catch (err) {
