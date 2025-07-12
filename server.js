@@ -39,25 +39,31 @@ wss.on("connection", (ws) => {
         // Ghi vào CSDL
         try {
           const q =
-            "INSERT INTO messages (sender_id, receiver_id, content) VALUES (?, ?, ?)";
-          await db.execute(q, [sender_id, receiver_id, content]);
+            "INSERT INTO messages (sender_id, receiver_id, content, timestamp) VALUES (?, ?, ?, NOW())";
+          const [result] = await db.execute(q, [sender_id, receiver_id, content]);
           console.log(
             `💬 Tin nhắn từ ${sender_id} gửi ${receiver_id}: ${content}`
           );
+          
+          // Lấy timestamp vừa tạo
+          const timestampQuery = "SELECT timestamp FROM messages WHERE id = ?";
+          const [timestampResult] = await db.execute(timestampQuery, [result.insertId]);
+          const timestamp = timestampResult[0]?.timestamp;
+          
+          // Gửi tin đến người nhận nếu online
+          const receiverWs = clients.get(receiver_id);
+          if (receiverWs && receiverWs.readyState === WebSocket.OPEN) {
+            receiverWs.send(
+              JSON.stringify({
+                type: "message",
+                sender_id,
+                content,
+                timestamp: timestamp,
+              })
+            );
+          }
         } catch (err) {
           console.error("❌ Lỗi ghi DB:", err);
-        }
-
-        // Gửi tin đến người nhận nếu online
-        const receiverWs = clients.get(receiver_id);
-        if (receiverWs && receiverWs.readyState === WebSocket.OPEN) {
-          receiverWs.send(
-            JSON.stringify({
-              type: "message",
-              sender_id,
-              content,
-            })
-          );
         }
       }
     } catch (err) {
