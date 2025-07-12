@@ -14,24 +14,34 @@ dotenv.config();
 
 const app = express();
 
-// Create HTTPS server if SSL certificates are available
+// Create server based on environment
 let server;
 let wss;
 
-try {
-  // Try to load SSL certificates
-  const privateKey = fs.readFileSync(path.join(__dirname, 'ssl', 'private.key'), 'utf8');
-  const certificate = fs.readFileSync(path.join(__dirname, 'ssl', 'certificate.crt'), 'utf8');
-  
-  const credentials = { key: privateKey, cert: certificate };
-  server = https.createServer(credentials, app);
-  wss = new WebSocket.Server({ server });
-  console.log("🔒 HTTPS server created with SSL certificates");
-} catch (error) {
-  // Fallback to HTTP if SSL certificates are not available
+// Check if we're in production (Railway) or development
+const isProduction = process.env.NODE_ENV === 'production' || process.env.RAILWAY_ENVIRONMENT;
+
+if (isProduction) {
+  // In production (Railway), use HTTP server - Railway handles SSL termination
   server = http.createServer(app);
   wss = new WebSocket.Server({ server });
-  console.log("⚠️ HTTP server created (SSL certificates not found)");
+  console.log("🚀 Production server created (Railway SSL termination)");
+} else {
+  // In development, try to use local SSL certificates
+  try {
+    const privateKey = fs.readFileSync(path.join(__dirname, 'ssl', 'private.key'), 'utf8');
+    const certificate = fs.readFileSync(path.join(__dirname, 'ssl', 'certificate.crt'), 'utf8');
+    
+    const credentials = { key: privateKey, cert: certificate };
+    server = https.createServer(credentials, app);
+    wss = new WebSocket.Server({ server });
+    console.log("🔒 Development HTTPS server created with SSL certificates");
+  } catch (error) {
+    // Fallback to HTTP if SSL certificates are not available
+    server = http.createServer(app);
+    wss = new WebSocket.Server({ server });
+    console.log("⚠️ Development HTTP server created (SSL certificates not found)");
+  }
 }
 
 app.use(cors());
@@ -121,8 +131,17 @@ app.get("/", (req, res) => {
 const PORT = process.env.PORT || 3000;
 
 server.listen(PORT, () => {
-  const protocol = server instanceof https.Server ? 'https' : 'http';
-  const wsProtocol = server instanceof https.Server ? 'wss' : 'ws';
-  console.log(`🚀 Server đang chạy tại ${protocol}://localhost:${PORT}`);
-  console.log(`🔌 WebSocket server sẵn sàng tại ${wsProtocol}://localhost:${PORT}`);
+  const isProduction = process.env.NODE_ENV === 'production' || process.env.RAILWAY_ENVIRONMENT;
+  
+  if (isProduction) {
+    // In production (Railway), Railway handles SSL termination
+    console.log(`🚀 Production server running on Railway`);
+    console.log(`🔌 WebSocket server ready for WSS connections`);
+  } else {
+    // In development, show local URLs
+    const protocol = server instanceof https.Server ? 'https' : 'http';
+    const wsProtocol = server instanceof https.Server ? 'wss' : 'ws';
+    console.log(`🚀 Server đang chạy tại ${protocol}://localhost:${PORT}`);
+    console.log(`🔌 WebSocket server sẵn sàng tại ${wsProtocol}://localhost:${PORT}`);
+  }
 });
