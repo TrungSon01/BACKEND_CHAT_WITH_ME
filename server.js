@@ -1,7 +1,10 @@
 // server.js
 const express = require("express");
 const cors = require("cors");
+const https = require("https");
 const http = require("http");
+const fs = require("fs");
+const path = require("path");
 const WebSocket = require("ws");
 const dotenv = require("dotenv");
 const authRoutes = require("./routes/auth");
@@ -10,8 +13,26 @@ const pool = require("./db");
 dotenv.config();
 
 const app = express();
-const server = http.createServer(app);
-const wss = new WebSocket.Server({ server });
+
+// Create HTTPS server if SSL certificates are available
+let server;
+let wss;
+
+try {
+  // Try to load SSL certificates
+  const privateKey = fs.readFileSync(path.join(__dirname, 'ssl', 'private.key'), 'utf8');
+  const certificate = fs.readFileSync(path.join(__dirname, 'ssl', 'certificate.crt'), 'utf8');
+  
+  const credentials = { key: privateKey, cert: certificate };
+  server = https.createServer(credentials, app);
+  wss = new WebSocket.Server({ server });
+  console.log("🔒 HTTPS server created with SSL certificates");
+} catch (error) {
+  // Fallback to HTTP if SSL certificates are not available
+  server = http.createServer(app);
+  wss = new WebSocket.Server({ server });
+  console.log("⚠️ HTTP server created (SSL certificates not found)");
+}
 
 app.use(cors());
 app.use(express.json());
@@ -86,22 +107,22 @@ pool
   .then((connection) => {
     console.log("✅ Đã kết nối CSDL thành công!");
     connection.release(); // Trả connection về pool
-
-    app.listen(PORT, () => {
-      console.log(`🚀 Server đang chạy tại http://localhost:${PORT}`);
-    });
   })
   .catch((err) => {
     console.error("❌ Lỗi kết nối CSDL:", err.message);
   });
 
 app.get("/", (req, res) => {
-  res.send("Backend API is running! Use /api/auth/* endpoints.");
+  const protocol = server instanceof https.Server ? 'https' : 'http';
+  res.send(`Backend API is running on ${protocol}! Use /api/auth/* endpoints.`);
 });
 
-// Khởi động server sau khi kết nối DB thành cônga
+// Khởi động server sau khi kết nối DB thành công
 const PORT = process.env.PORT || 3000;
 
 server.listen(PORT, () => {
-  console.log(`🚀 Server đang chạy tại http://localhost:${PORT}`);
+  const protocol = server instanceof https.Server ? 'https' : 'http';
+  const wsProtocol = server instanceof https.Server ? 'wss' : 'ws';
+  console.log(`🚀 Server đang chạy tại ${protocol}://localhost:${PORT}`);
+  console.log(`🔌 WebSocket server sẵn sàng tại ${wsProtocol}://localhost:${PORT}`);
 });
