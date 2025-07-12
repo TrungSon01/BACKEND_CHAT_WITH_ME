@@ -73,17 +73,16 @@ wss.on("connection", (ws) => {
 
         // Ghi vào CSDL
         try {
+          const currentTimestamp = new Date().toISOString().slice(0, 19).replace('T', ' ');
           const q =
-            "INSERT INTO messages (sender_id, receiver_id, content, timestamp) VALUES (?, ?, ?, NOW())";
-          const [result] = await db.execute(q, [sender_id, receiver_id, content]);
+            "INSERT INTO messages (sender_id, receiver_id, content, timestamp) VALUES (?, ?, ?, ?)";
+          const [result] = await db.execute(q, [sender_id, receiver_id, content, currentTimestamp]);
           console.log(
             `💬 Tin nhắn từ ${sender_id} gửi ${receiver_id}: ${content}`
           );
           
-          // Lấy timestamp vừa tạo
-          const timestampQuery = "SELECT timestamp FROM messages WHERE id = ?";
-          const [timestampResult] = await db.execute(timestampQuery, [result.insertId]);
-          const timestamp = timestampResult[0]?.timestamp;
+          // Gửi luôn currentTimestamp cho client
+          const timestamp = currentTimestamp;
           
           // Gửi tin đến người nhận nếu online
           const receiverWs = clients.get(receiver_id);
@@ -159,6 +158,9 @@ app.get("/debug/websocket", (req, res) => {
     serverType: isProduction ? 'Production (Railway)' : 'Development'
   });
 });
+
+// Test endpoint to send a test message via WebSocket
+
 
 // Khởi động server sau khi kết nối DB thành công
 const PORT = process.env.PORT || 3000;
