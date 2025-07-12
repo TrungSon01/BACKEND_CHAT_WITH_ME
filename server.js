@@ -51,6 +51,8 @@ app.use("/api/auth", authRoutes);
 const clients = new Map(); // Map userid -> ws
 
 wss.on("connection", (ws) => {
+  console.log("🔗 New WebSocket connection established");
+  
   ws.on("message", async (message) => {
     try {
       const data = JSON.parse(message);
@@ -60,6 +62,8 @@ wss.on("connection", (ws) => {
         clients.set(data.user_id, ws);
      
         console.log(`🔗 User ${data.user_id} đã kết nối WebSocket.`);
+        console.log(`📊 Total connected users: ${clients.size}`);
+        console.log(`👥 Connected users: ${Array.from(clients.keys()).join(', ')}`);
         return;
       }
 
@@ -88,10 +92,29 @@ wss.on("connection", (ws) => {
               JSON.stringify({
                 type: "message",
                 sender_id,
+                receiver_id,
                 content,
                 timestamp: timestamp,
               })
             );
+            console.log(`📤 Sent message to receiver ${receiver_id}`);
+          } else {
+            console.log(`📤 Receiver ${receiver_id} is offline`);
+          }
+          
+          // Gửi tin nhắn về cho sender để confirm
+          const senderWs = clients.get(sender_id);
+          if (senderWs && senderWs.readyState === WebSocket.OPEN) {
+            senderWs.send(
+              JSON.stringify({
+                type: "message",
+                sender_id,
+                receiver_id,
+                content,
+                timestamp: timestamp,
+              })
+            );
+            console.log(`📤 Sent confirmation to sender ${sender_id}`);
           }
         } catch (err) {
           console.error("❌ Lỗi ghi DB:", err);
@@ -125,6 +148,16 @@ pool
 app.get("/", (req, res) => {
   const protocol = server instanceof https.Server ? 'https' : 'http';
   res.send(`Backend API is running on ${protocol}! Use /api/auth/* endpoints.`);
+});
+
+// Debug endpoint to check WebSocket connections
+app.get("/debug/websocket", (req, res) => {
+  const connectedUsers = Array.from(clients.keys());
+  res.json({
+    connectedUsers,
+    totalConnections: clients.size,
+    serverType: isProduction ? 'Production (Railway)' : 'Development'
+  });
 });
 
 // Khởi động server sau khi kết nối DB thành công
